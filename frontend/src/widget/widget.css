@@ -1,0 +1,1104 @@
+/* ---------------------------------------------------------------------
+   Chat widget theme — Premium Animated Edition
+   ---------------------------------------------------------------------
+   Drop-in replacement for frontend/src/widget/widget.css.
+   Same class names as before (widget-*, bubble-*, option-btn, etc.), so
+   BotWidget.jsx / NormalEngine.jsx / ProductGrid.jsx / DynamicForm.jsx /
+   QueryForm.jsx need ZERO changes — only the animation/visual layer is
+   upgraded.
+
+   Every color/background still reads from a CSS custom property with a
+   fallback (the original hardcoded values), so:
+     - a bot with no theme saved renders exactly as before, just livelier
+     - a bot with a theme saved (see backend/models/Chatbot.js ->
+       themeSchema, set on .widget-shell by BotWidget.jsx) re-skins
+       instantly with no per-component code changes
+
+   Variables (all optional, set inline on .widget-shell):
+     --cbw-nav-bg         header/navbar background
+     --cbw-nav-text       header title/subtitle/lang-toggle text color
+     --cbw-accent         buttons, option chips, user bubble, focus rings
+     --cbw-chat-bg        chat area background color
+     --cbw-chat-bg-image  chat area background image (admin-uploaded)
+
+   New in this pass (all purely additive — safe to keep unused):
+     .widget-typing / .widget-typing-dots   bot "is typing…" indicator
+     .widget-fab / .widget-fab-badge        optional floating launcher
+     prefers-reduced-motion support throughout
+--------------------------------------------------------------------- */
+
+:root {
+  --cbw-ease: cubic-bezier(0.22, 0.9, 0.32, 1);
+}
+
+.widget-page {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #f3f5fa 0%, #eceafc 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  font-family: "Inter", sans-serif;
+}
+
+.widget-shell {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 20px 50px rgba(23, 26, 43, 0.14);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 640px;
+  font-family: var(--cbw-font, "Inter", sans-serif);
+  animation: cbw-shell-in 0.38s var(--cbw-ease) both;
+}
+@keyframes cbw-shell-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ---------------- Header ---------------- */
+
+.widget-header {
+  position: relative;
+  background: var(--cbw-nav-bg, #3b3486);
+  color: var(--cbw-nav-text, #ffffff);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  overflow: hidden;
+}
+/* animated sheen sweeping across the header, tints with whatever
+   navbar color is set — gives the header a subtle "alive" quality
+   without ever fighting the admin's chosen brand color */
+.widget-header::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    120deg,
+    rgba(255, 255, 255, 0.16) 0%,
+    rgba(255, 255, 255, 0) 45%,
+    rgba(255, 255, 255, 0.1) 70%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  background-size: 220% 100%;
+  animation: cbw-header-sheen 7s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes cbw-header-sheen {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+/* soft glow breathing behind the badge, like a quiet stage light */
+.widget-header::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 34px;
+  width: 130px;
+  height: 130px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--cbw-accent, #14b8a6) 55%, transparent) 0%, transparent 70%);
+  opacity: 0.35;
+  transform: translate(-50%, -50%);
+  animation: cbw-spotlight-breathe 4s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes cbw-spotlight-breathe {
+  0%, 100% { opacity: 0.22; transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 0.4; transform: translate(-50%, -50%) scale(1.15); }
+}
+
+.widget-header-brand {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  animation: cbw-brand-in 0.45s var(--cbw-ease) both;
+}
+@keyframes cbw-brand-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+/* two tiny twinkling sparkles flanking the brand — a light, premium touch */
+.widget-header-brand::before,
+.widget-header-brand::after {
+  content: "✦";
+  position: absolute;
+  font-size: 10px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: 0 0 6px color-mix(in srgb, var(--cbw-accent, #14b8a6) 70%, white);
+  animation: cbw-twinkle 2.6s ease-in-out infinite;
+  pointer-events: none;
+}
+.widget-header-brand::before { top: -4px; left: 30px; animation-delay: 0.2s; }
+.widget-header-brand::after { bottom: -2px; left: 2px; font-size: 8px; animation-delay: 1.3s; }
+@keyframes cbw-twinkle {
+  0%, 100% { opacity: 0; transform: scale(0.4) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1) rotate(90deg); }
+}
+
+.widget-header-badge {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.16);
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  animation: cbw-badge-in 0.45s var(--cbw-ease) both;
+}
+@keyframes cbw-badge-in {
+  0% { opacity: 0; transform: scale(0.5) rotate(-16deg); }
+  60% { opacity: 1; transform: scale(1.1) rotate(4deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+/* quiet always-on pulse ring around the badge */
+.widget-header-badge::before {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in srgb, var(--cbw-accent, #14b8a6) 65%, white);
+  animation: cbw-ring-pulse 2.8s ease-out infinite;
+  pointer-events: none;
+}
+@keyframes cbw-ring-pulse {
+  0% { transform: scale(0.9); opacity: 0.6; }
+  70%, 100% { transform: scale(1.5); opacity: 0; }
+}
+.widget-logo-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  object-fit: cover;
+  object-position: center;
+  animation: cbw-bob 3.4s ease-in-out infinite;
+}
+@keyframes cbw-bob {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-2px) scale(1.02); }
+}
+.widget-badge-icon {
+  width: 24px;
+  height: 24px;
+  color: var(--cbw-nav-text, #ffffff);
+}
+/* subtle "speaking" state — apply this class from JS when the bot is
+   actively streaming/typing a reply, for an extra layer of life */
+.widget-header-badge-speaking {
+  animation: cbw-badge-in 0.45s var(--cbw-ease) both, cbw-speaking-glow 1.1s ease-in-out infinite;
+}
+@keyframes cbw-speaking-glow {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--cbw-accent, #14b8a6) 55%, transparent); }
+  50% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--cbw-accent, #14b8a6) 0%, transparent); }
+}
+
+.widget-header h2 {
+  position: relative;
+  color: var(--cbw-nav-text, #ffffff);
+  font-size: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: cbw-text-in 0.5s var(--cbw-ease) 0.08s both;
+}
+.widget-header .tag {
+  position: relative;
+  font-size: 11px;
+  color: var(--cbw-nav-text, #cbc7ef);
+  opacity: 0.85;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  animation: cbw-text-in 0.5s var(--cbw-ease) 0.16s both;
+}
+.widget-header .tag::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 6px #34d399;
+  flex-shrink: 0;
+  animation: cbw-online-pulse 2s ease-in-out infinite;
+}
+@keyframes cbw-online-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.25); opacity: 0.75; }
+}
+@keyframes cbw-text-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.widget-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.widget-lang-toggle {
+  position: relative;
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  animation: cbw-brand-in 0.45s var(--cbw-ease) 0.1s both;
+}
+.widget-lang-toggle button {
+  border: 1px solid color-mix(in srgb, var(--cbw-nav-text, #ffffff) 35%, transparent);
+  background: transparent;
+  color: var(--cbw-nav-text, #e9e7fb);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.18s var(--cbw-ease), border-color 0.18s ease;
+}
+.widget-lang-toggle button:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--cbw-nav-text, #ffffff) 60%, transparent);
+}
+.widget-lang-toggle button:active { transform: translateY(0) scale(0.96); }
+.widget-lang-toggle button.active {
+  background: var(--cbw-accent, #14b8a6);
+  border-color: var(--cbw-accent, #14b8a6);
+  color: #fff;
+  animation: cbw-pop 0.28s var(--cbw-ease);
+}
+@keyframes cbw-pop {
+  0% { transform: scale(0.9); }
+  60% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+/* ---------------- Body / messages ---------------- */
+
+.widget-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background-color: var(--cbw-chat-bg, #f7f8fc);
+  background-image: var(--cbw-chat-bg-image, none);
+  background-size: cover;
+  background-position: center;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--cbw-accent, #3b3486) 35%, transparent) transparent;
+}
+.widget-body::-webkit-scrollbar { width: 7px; }
+.widget-body::-webkit-scrollbar-track { background: transparent; }
+.widget-body::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--cbw-accent, #3b3486) 30%, transparent);
+  border-radius: 999px;
+}
+.widget-body::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--cbw-accent, #3b3486) 50%, transparent);
+}
+
+.widget-msg-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.widget-msg-row-user {
+  justify-content: flex-end;
+}
+
+.widget-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid rgba(23, 26, 43, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cbw-accent, #3b3486);
+  animation: cbw-avatar-pop 0.3s var(--cbw-ease) both;
+}
+@keyframes cbw-avatar-pop {
+  from { opacity: 0; transform: scale(0.5) translateY(6px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.widget-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: cbw-bob 3.6s ease-in-out infinite;
+}
+.widget-avatar-icon {
+  width: 16px;
+  height: 16px;
+}
+.widget-avatar-speaking {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cbw-accent, #3b3486) 30%, transparent);
+  animation: cbw-avatar-pop 0.3s var(--cbw-ease) both, cbw-speaking-pulse 1.1s ease-in-out infinite;
+}
+@keyframes cbw-speaking-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--cbw-accent, #3b3486) 25%, transparent); }
+  50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--cbw-accent, #3b3486) 0%, transparent); }
+}
+
+.bubble {
+  max-width: 82%;
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  animation: cbw-msg-in 0.32s var(--cbw-ease) both;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+@keyframes cbw-msg-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.bubble-bot {
+  background: #fff;
+  border: 1px solid #e3e6f0;
+  color: #171a2b;
+  border-bottom-left-radius: 4px;
+  box-shadow: 0 2px 10px rgba(23, 26, 43, 0.05);
+}
+.bubble-bot:hover {
+  box-shadow: 0 6px 16px rgba(23, 26, 43, 0.09);
+}
+
+.bubble-user {
+  margin-left: auto;
+  background: var(--cbw-accent, #3b3486);
+  background-image: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--cbw-accent, #3b3486) 100%, white 12%),
+    var(--cbw-accent, #3b3486)
+  );
+  color: #fff;
+  border-bottom-right-radius: 4px;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--cbw-accent, #3b3486) 35%, transparent);
+}
+.bubble-user:hover {
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--cbw-accent, #3b3486) 45%, transparent);
+}
+
+/* ---------------- "Bot is typing…" indicator (optional) ----------------
+   Not wired up by default. To use, render this markup while waiting for
+   the bot's next message, right where the next bot bubble will appear:
+
+     <div className="widget-msg-row widget-msg-row-bot">
+       <span className="widget-avatar"> ... </span>
+       <div className="bubble bubble-bot widget-typing">
+         <span></span><span></span><span></span>
+       </div>
+     </div>
+------------------------------------------------------------------------ */
+.widget-typing {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 13px 16px;
+}
+.widget-typing span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cbw-accent, #3b3486);
+  opacity: 0.45;
+  animation: cbw-typing-bounce 1.1s ease-in-out infinite;
+}
+.widget-typing span:nth-child(2) { animation-delay: 0.15s; }
+.widget-typing span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes cbw-typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
+  30% { transform: translateY(-4px); opacity: 0.95; }
+}
+
+/* ---------------------------------------------------------------------
+   Quick-reply chips
+   Restyled to match the Muthu WinSS reference (.mws-options /
+   .mws-option-chip): a horizontal wrap of rounded pill chips sitting
+   under the bot's avatar, rather than a stacked full-width list. The
+   left padding (34px = 26px avatar + 8px gap) lines the chip row up
+   under the avatar exactly like the reference's 40px offset does.
+--------------------------------------------------------------------- */
+.widget-options {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+  padding-left: 34px;
+}
+
+.option-btn {
+  position: relative;
+  text-align: left;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1.5px solid var(--cbw-accent, #3b3486);
+  background: #fff;
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--cbw-accent, #3b3486);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  animation: cbw-option-in 0.3s var(--cbw-ease) both;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+.widget-options .option-btn:nth-child(1) { animation-delay: 0.02s; }
+.widget-options .option-btn:nth-child(2) { animation-delay: 0.08s; }
+.widget-options .option-btn:nth-child(3) { animation-delay: 0.14s; }
+.widget-options .option-btn:nth-child(4) { animation-delay: 0.2s; }
+.widget-options .option-btn:nth-child(5) { animation-delay: 0.26s; }
+@keyframes cbw-option-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.option-btn:hover {
+  background: var(--cbw-accent, #3b3486);
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--cbw-accent, #3b3486) 30%, transparent);
+}
+.option-btn:hover .opt-label {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+.option-btn:active { transform: translateY(0) scale(0.98); }
+.option-btn .opt-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--cbw-accent, #3b3486) 14%, transparent);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--cbw-accent, #3b3486);
+  flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+
+/* ---------------- Form (QueryForm + DynamicForm shared base) ---------------- */
+.widget-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  background: color-mix(in srgb, var(--cbw-chat-bg, #f4f5fb) 55%, #ffffff);
+  border: 1px solid color-mix(in srgb, var(--cbw-accent, #3b3486) 12%, #e2e4f0);
+  border-radius: 16px;
+  box-shadow: 0 6px 20px rgba(23, 26, 43, 0.06);
+  animation: cbw-option-in 0.3s var(--cbw-ease) both;
+}
+
+.widget-form-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1f2340;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.widget-form-title::before {
+  content: "";
+  width: 4px;
+  height: 16px;
+  border-radius: 3px;
+  background: var(--cbw-accent, #3b3486);
+  flex-shrink: 0;
+}
+
+.widget-form label,
+.widget-dynamic-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #4b5170;
+}
+
+.widget-form input,
+.widget-form textarea,
+.widget-dynamic-field input,
+.widget-dynamic-field textarea {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1.5px solid #d9dcec;
+  font-size: 13px;
+  font-weight: 400;
+  font-family: inherit;
+  color: #1f2340;
+  background: #fff;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+.widget-form input::placeholder,
+.widget-form textarea::placeholder {
+  color: #a2a7c0;
+  font-weight: 400;
+}
+.widget-form textarea {
+  resize: vertical;
+  min-height: 64px;
+  line-height: 1.4;
+}
+.widget-form input:hover,
+.widget-form textarea:hover {
+  border-color: color-mix(in srgb, var(--cbw-accent, #3b3486) 35%, #d9dcec);
+}
+.widget-form input:focus,
+.widget-form textarea:focus {
+  outline: none;
+  border-color: var(--cbw-accent, #3b3486);
+  background: #fff;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cbw-accent, #3b3486) 18%, transparent);
+}
+
+/* Custom "choose file" control — native file inputs can't be styled
+   directly, so this wraps them in the same visual language as the rest
+   of the form (dashed drop-zone look, accent on hover). */
+.widget-dynamic-field input[type="file"] {
+  padding: 10px 12px;
+  font-size: 12px;
+  border: 1.5px dashed #c7cbe4;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--cbw-accent, #3b3486) 4%, #fff);
+  cursor: pointer;
+}
+.widget-dynamic-field input[type="file"]:hover {
+  border-color: var(--cbw-accent, #3b3486);
+  background: color-mix(in srgb, var(--cbw-accent, #3b3486) 8%, #fff);
+}
+.widget-dynamic-field input[type="file"]::file-selector-button {
+  padding: 6px 12px;
+  margin-right: 10px;
+  border: none;
+  border-radius: 7px;
+  background: var(--cbw-accent, #3b3486);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+.widget-dynamic-field input[type="file"]::file-selector-button:hover {
+  filter: brightness(1.1);
+}
+
+.widget-form button {
+  padding: 11px;
+  border-radius: 10px;
+  border: none;
+  background: var(--cbw-accent, #3b3486);
+  background-image: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--cbw-accent, #3b3486) 100%, white 14%),
+    var(--cbw-accent, #3b3486)
+  );
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  margin-top: 2px;
+  transition: filter 0.18s ease, transform 0.18s var(--cbw-ease), box-shadow 0.18s ease;
+}
+.widget-form button:hover:not(:disabled) {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--cbw-accent, #3b3486) 30%, transparent);
+}
+.widget-form button:active:not(:disabled) { transform: translateY(0) scale(0.98); }
+.widget-form button:disabled { opacity: 0.65; cursor: default; transform: none; box-shadow: none; }
+
+.voice-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid color-mix(in srgb, var(--cbw-nav-text, #ffffff) 35%, transparent);
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--cbw-nav-text, #fff);
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s var(--cbw-ease);
+}
+.voice-toggle:hover {
+  background: rgba(255, 255, 255, 0.28);
+  border-color: color-mix(in srgb, var(--cbw-nav-text, #ffffff) 60%, transparent);
+  transform: translateY(-1px);
+}
+.voice-toggle:active { transform: translateY(0) scale(0.94); }
+.voice-toggle-icon { width: 16px; height: 16px; }
+
+/* ---------------- Product grid (nodeType: "products") ---------------- */
+.widget-products {
+}
+
+.widget-product-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.widget-product-card {
+  background: #fff;
+  border: 1px solid #e3e6f0;
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: cbw-option-in 0.32s var(--cbw-ease) both;
+  transition: transform 0.22s var(--cbw-ease), box-shadow 0.22s var(--cbw-ease), border-color 0.22s ease;
+}
+.widget-product-grid .widget-product-card:nth-child(1) { animation-delay: 0.02s; }
+.widget-product-grid .widget-product-card:nth-child(2) { animation-delay: 0.08s; }
+.widget-product-grid .widget-product-card:nth-child(3) { animation-delay: 0.14s; }
+.widget-product-grid .widget-product-card:nth-child(4) { animation-delay: 0.2s; }
+.widget-product-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(23, 26, 43, 0.12);
+  border-color: color-mix(in srgb, var(--cbw-accent, #3b3486) 35%, #e3e6f0);
+}
+
+.widget-product-img {
+  width: 100%;
+  height: 90px;
+  object-fit: cover;
+  background: #eceafc;
+  transition: transform 0.4s var(--cbw-ease);
+}
+.widget-product-card:hover .widget-product-img {
+  transform: scale(1.07);
+}
+
+.widget-product-img-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: #9aa0b4;
+}
+
+.widget-product-body {
+  padding: 8px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.widget-product-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #171a2b;
+  line-height: 1.3;
+}
+
+.widget-product-desc {
+  font-size: 11.5px;
+  color: #6b7089;
+  line-height: 1.35;
+}
+
+.widget-product-btn {
+  margin-top: auto;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--cbw-accent, #3b3486);
+  background: #fff;
+  color: var(--cbw-accent, #3b3486);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.18s var(--cbw-ease);
+}
+.widget-product-btn:hover {
+  background: var(--cbw-accent, #3b3486);
+  color: #fff;
+  transform: translateY(-1px);
+}
+.widget-product-btn:active { transform: translateY(0) scale(0.97); }
+
+.widget-product-continue {
+  width: 100%;
+  justify-content: center;
+  font-weight: 600;
+}
+
+/* ---------------- Dynamic form (nodeType: "form") ---------------- */
+.widget-dynamic-form {
+  gap: 12px;
+}
+
+.widget-required-star {
+  color: #e0455f;
+  font-weight: 700;
+}
+
+.widget-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, #e0455f 10%, #fff);
+  border: 1px solid color-mix(in srgb, #e0455f 25%, #fff);
+  color: #c22f47;
+  font-size: 12px;
+  font-weight: 600;
+  animation: cbw-shake 0.32s var(--cbw-ease);
+}
+.widget-error::before {
+  content: "!";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #e0455f;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+@keyframes cbw-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-3px); }
+  75% { transform: translateX(3px); }
+}
+
+.widget-thanks {
+  color: #0d8f80;
+  font-size: 13.5px;
+  animation: cbw-option-in 0.32s var(--cbw-ease) both;
+}
+
+.widget-voice-notice {
+  color: #8a6d1d;
+  font-size: 12px;
+  opacity: 0.85;
+  animation: cbw-option-in 0.32s var(--cbw-ease) both;
+}
+
+.widget-centered {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 12px;
+  color: #6b7089;
+  padding: 24px;
+  text-align: center;
+  animation: cbw-msg-in 0.3s var(--cbw-ease) both;
+}
+
+/* ---------------- Optional floating launcher (unused by default) ----------------
+   If you ever add a minimized "chat bubble" launcher instead of always
+   rendering the full widget, these classes match the same animation
+   language as the rest of the widget.
+------------------------------------------------------------------------------- */
+.widget-fab {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--cbw-nav-bg, #3b3486);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 8px 18px 8px 8px;
+  cursor: pointer;
+  box-shadow: 0 10px 26px rgba(23, 26, 43, 0.28), 0 0 0 0 color-mix(in srgb, var(--cbw-accent, #14b8a6) 50%, transparent);
+  animation: cbw-shell-in 0.4s var(--cbw-ease) both, cbw-fab-glow 2.8s ease-in-out infinite 0.6s;
+  transition: transform 0.2s var(--cbw-ease), box-shadow 0.2s var(--cbw-ease);
+}
+@keyframes cbw-fab-glow {
+  0%, 100% { box-shadow: 0 10px 26px rgba(23, 26, 43, 0.28), 0 0 0 0 color-mix(in srgb, var(--cbw-accent, #14b8a6) 45%, transparent); }
+  50% { box-shadow: 0 10px 30px rgba(23, 26, 43, 0.32), 0 0 0 8px color-mix(in srgb, var(--cbw-accent, #14b8a6) 0%, transparent); }
+}
+.widget-fab:hover { transform: translateY(-3px); }
+.widget-fab:active { transform: translateY(-1px) scale(0.98); }
+.widget-fab-badge {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.16);
+  border: 2px solid rgba(255, 255, 255, 0.35);
+}
+.widget-fab-badge img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: cbw-bob 3.2s ease-in-out infinite;
+}
+
+/* ---------------- Full screen / embedded display mode ----------------
+   Applied when the chatbot is published in "Full Screen" displayMode, or
+   when the page is loaded inside the widget-loader.js embed iframe
+   (?embed=1) — see BotWidget.jsx. Turns the centered, fixed-size card into
+   an edge-to-edge layout that fills the viewport (or iframe).
+------------------------------------------------------------------------- */
+.widget-page-fullscreen {
+  min-height: 100vh;
+  padding: 0;
+  background: none;
+}
+.widget-shell-fullscreen {
+  max-width: none;
+  width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* ---------------- Ambient background video ----------------
+   Purely decorative, looping, muted video shown behind the whole shell
+   (see BotWidget.jsx -> BackgroundVideo, theme.bgVideoEnabled/bgVideoUrl).
+   Sits at z-index 0 inside .widget-shell; header/body/etc. panels are
+   lifted to z-index 1 below and — only when active — have their own
+   backgrounds stripped so the video actually shows through the gaps
+   around the (still-opaque) message bubbles and cards.
+------------------------------------------------------------------------- */
+.widget-bg-video-wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.widget-bg-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  border: none;
+}
+.widget-bg-video-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.72);
+  pointer-events: none;
+}
+.widget-shell-has-video > .widget-header,
+.widget-shell-has-video .widget-body,
+.widget-shell-has-video .widget-options,
+.widget-shell-has-video .widget-products,
+.widget-shell-has-video .widget-form,
+.widget-shell-has-video .widget-thanks,
+.widget-shell-has-video .widget-centered {
+  position: relative;
+  z-index: 1;
+}
+.widget-shell-has-video .widget-body,
+.widget-shell-has-video .widget-options,
+.widget-shell-has-video .widget-products,
+.widget-shell-has-video .widget-form,
+.widget-shell-has-video .widget-thanks {
+  background-color: transparent;
+  background-image: none;
+}
+
+/* ---------------- Link-option badge ----------------
+   Small "opens in a new tab" hint rendered on message options that carry
+   an optional url (see backend/models/Chatbot.js -> optionSchema "url").
+------------------------------------------------------------------------- */
+.opt-link-badge {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--cbw-accent, #3b3486);
+  opacity: 0.7;
+}
+
+/* ---------------- Instruction steps card (nodeType: "steps") ---------------- */
+.widget-step-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  border: 1px solid #e3e6f0;
+  border-radius: 14px;
+  padding: 16px 16px 14px;
+  text-align: center;
+  animation: cbw-option-in 0.32s var(--cbw-ease) both;
+}
+
+.widget-step-progress {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+.widget-step-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #d9dcec;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+.widget-step-dot-done {
+  background: color-mix(in srgb, var(--cbw-accent, #3b3486) 55%, white);
+}
+.widget-step-dot-active {
+  background: var(--cbw-accent, #3b3486);
+  transform: scale(1.3);
+}
+
+.widget-step-visual-wrap {
+  width: 100%;
+  max-width: 190px;
+  aspect-ratio: 1 / 1;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f7f8fc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.widget-step-visual-wrap-celebrate {
+  background: color-mix(in srgb, var(--cbw-accent, #3b3486) 10%, #fff);
+}
+.widget-step-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.widget-step-illustration {
+  width: 56%;
+  height: 56%;
+  object-fit: contain;
+  color: var(--cbw-accent, #3b3486);
+  opacity: 0.55;
+}
+
+.widget-step-counter {
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  color: #6b7089;
+  text-transform: uppercase;
+}
+
+.widget-step-title {
+  font-size: 15.5px;
+  font-weight: 700;
+  color: #171a2b;
+}
+
+.widget-step-desc {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #47506b;
+  max-width: 300px;
+}
+
+.widget-step-nav {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.widget-step-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s var(--cbw-ease), opacity 0.15s ease;
+}
+.widget-step-btn-primary {
+  background: var(--cbw-accent, #3b3486);
+  color: #fff;
+}
+.widget-step-btn-primary:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+.widget-step-btn-primary:active { transform: translateY(0) scale(0.98); }
+.widget-step-btn-ghost {
+  background: transparent;
+  color: #47506b;
+  border: 1.5px solid #d9dcec;
+}
+.widget-step-btn-ghost:hover {
+  background: #f7f8fc;
+}
+
+/* ---------------- Reduced motion ---------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .widget-shell,
+  .widget-header::before,
+  .widget-header::after,
+  .widget-header-brand,
+  .widget-header-brand::before,
+  .widget-header-brand::after,
+  .widget-header-badge,
+  .widget-header-badge::before,
+  .widget-header-badge-speaking,
+  .widget-logo-img,
+  .widget-header h2,
+  .widget-header .tag,
+  .widget-header .tag::before,
+  .widget-lang-toggle,
+  .widget-lang-toggle button.active,
+  .widget-avatar,
+  .widget-avatar-img,
+  .widget-avatar-speaking,
+  .bubble,
+  .widget-typing span,
+  .option-btn,
+  .widget-form,
+  .voice-toggle,
+  .widget-product-card,
+  .widget-product-img,
+  .widget-error,
+  .widget-thanks,
+  .widget-centered,
+  .widget-fab,
+  .widget-fab-badge img,
+  .widget-step-card,
+  .widget-step-dot,
+  .widget-step-btn {
+    animation: none !important;
+    transition: none !important;
+  }
+}
