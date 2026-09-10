@@ -5,6 +5,8 @@ import Loader from "../../components/Loader.jsx";
 import StatusBadge from "../../components/StatusBadge.jsx";
 import api from "../../api/axios.js";
 
+const BASE_DOMAIN = import.meta.env.VITE_BASE_DOMAIN || "geninuety.com";
+
 const ACCESS_INFO = [
   { key: "chatbot", label: "Chatbot creation", desc: "Build & publish Product/Overall chatbots" },
   { key: "voiceChatbot", label: "AI Voice Chatbot", desc: "Use the voice (TTS) engine for chatbots" },
@@ -25,6 +27,9 @@ export default function AdminList() {
   const [admins, setAdmins] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [accessTarget, setAccessTarget] = useState(null); // admin being edited
+  const [subdomainInput, setSubdomainInput] = useState("");
+  const [subdomainSaving, setSubdomainSaving] = useState(false);
+  const [subdomainErr, setSubdomainErr] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -65,6 +70,32 @@ export default function AdminList() {
     load();
   };
 
+  const openAccessModal = (admin) => {
+    setAccessTarget(admin);
+    setSubdomainInput(admin.subdomain || "");
+    setSubdomainErr("");
+  };
+
+  // Sets (or clears) this admin's shared subdomain, e.g. "muthuwinss" ->
+  // https://muthuwinss.geninuety.com/bot/<slug> for every bot they publish.
+  // Already-published bots have their public link/QR refreshed server-side
+  // immediately — see superAdminController.setAdminSubdomain.
+  const saveSubdomain = async () => {
+    setSubdomainSaving(true);
+    setSubdomainErr("");
+    try {
+      const res = await api.put(`/superadmin/admins/${accessTarget._id}/subdomain`, {
+        subdomain: subdomainInput.trim().toLowerCase(),
+      });
+      setAccessTarget(res.data.data);
+      load();
+    } catch (err) {
+      setSubdomainErr(err.response?.data?.message || "Could not save subdomain");
+    } finally {
+      setSubdomainSaving(false);
+    }
+  };
+
   return (
     <Layout
       title="Admins & Activation"
@@ -89,6 +120,7 @@ export default function AdminList() {
               <tr>
                 <th>Admin</th>
                 <th>Username</th>
+                <th>Subdomain</th>
                 <th>Access</th>
                 <th>Status</th>
                 <th></th>
@@ -102,6 +134,9 @@ export default function AdminList() {
                     <div className="helper-text">{admin.company}</div>
                   </td>
                   <td className="mono">{admin.username}</td>
+                  <td className="mono">
+                    {admin.subdomain ? `${admin.subdomain}.${BASE_DOMAIN}` : <span className="helper-text">—</span>}
+                  </td>
                   <td>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       {ACCESS_INFO.map(
@@ -122,7 +157,7 @@ export default function AdminList() {
                   </td>
                   <td>
                     <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                      <button className="btn btn-outline btn-sm" onClick={() => setAccessTarget(admin)}>
+                      <button className="btn btn-outline btn-sm" onClick={() => openAccessModal(admin)}>
                         Manage access
                       </button>
                       <button
@@ -233,8 +268,38 @@ export default function AdminList() {
       )}
 
       {accessTarget && (
-        <Modal title={`Access — ${accessTarget.name}`} onClose={() => setAccessTarget(null)} width={420}>
-          <p className="helper-text" style={{ marginBottom: 14 }}>
+        <Modal title={`Settings — ${accessTarget.name}`} onClose={() => setAccessTarget(null)} width={440}>
+          <div style={{ marginBottom: 18 }}>
+            <label style={{ fontSize: 12.5, fontWeight: 600, color: "var(--ink-soft)" }}>Subdomain</label>
+            <p className="helper-text" style={{ margin: "4px 0 10px" }}>
+              Shared by all of this admin's chatbots, e.g. <span className="mono">muthuwinss.{BASE_DOMAIN}</span>.
+              Each chatbot still gets its own link under it (/bot/&lt;slug&gt;).
+            </p>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input
+                type="text"
+                value={subdomainInput}
+                onChange={(e) => setSubdomainInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                placeholder="e.g. muthuwinss"
+                className="mono"
+                style={{ flex: 1 }}
+              />
+              <span className="helper-text" style={{ whiteSpace: "nowrap" }}>
+                .{BASE_DOMAIN}
+              </span>
+              <button className="btn btn-primary btn-sm" onClick={saveSubdomain} disabled={subdomainSaving}>
+                {subdomainSaving ? "Saving…" : "Save"}
+              </button>
+            </div>
+            {subdomainErr && (
+              <p className="error-text" style={{ marginTop: 8 }}>
+                {subdomainErr}
+              </p>
+            )}
+          </div>
+
+          <label style={{ fontSize: 12.5, fontWeight: 600, color: "var(--ink-soft)" }}>Feature access</label>
+          <p className="helper-text" style={{ margin: "4px 0 10px" }}>
             Toggle which features this admin can use. Changes apply immediately.
           </p>
           {ACCESS_INFO.map((a) => (

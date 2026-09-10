@@ -2,6 +2,8 @@ const bcrypt = require("bcryptjs");
 const Admin = require("../models/Admin");
 const Chatbot = require("../models/Chatbot");
 const Query = require("../models/Query");
+const { validateSubdomain, buildPublicLink } = require("../utils/subdomain");
+const { generateQrDataUrl } = require("../utils/generateQr");
 
 /*
 |--------------------------------------------------------------------------
@@ -134,6 +136,64 @@ exports.updateAdmin = async (req, res) => {
 
     res.status(200).json({ success: true, message: "Admin updated", data: admin });
   } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/*
+|--------------------------------------------------------------------------
+| Set/clear an Admin's vanity subdomain (superadmin override)
+|--------------------------------------------------------------------------
+| PUT /api/superadmin/admins/:id/subdomain   body: { subdomain: "muthuwinss" }
+| Same effect as the admin's own self-service PUT /api/admin/subdomain —
+| exposed here too so a Superadmin can allocate/correct it directly, e.g.
+| while onboarding a new client. Refreshes that admin's already-published
+| chatbots' publicLink/QR immediately, same as the self-service version.
+*/
+exports.setAdminSubdomain = async (req, res) => {
+  try {
+    const { value, error } = validateSubdomain(req.body.subdomain);
+    if (error) {
+      return res.status(400).json({ success: false, message: error });
+    }
+
+    if (value) {
+      const clash = await Admin.findOne({ subdomain: value, _id: { $ne: req.params.id } });
+      if (clash) {
+        return res.status(409).json({
+          success: false,
+          message: `"${value}" is already taken by another admin. Please choose another subdomain.`,
+        });
+      }
+    }
+
+    const admin = await Admin.findById(req.params.id);
+    if (!admin) {
+      return res.status(404).json({ success: false, message: "Admin not found" });
+    }
+
+    admin.subdomain = value || undefined;
+    await admin.save();
+
+    const publishedBots = await Chatbot.find({ admin: admin._id, status: "published" });
+    await Promise.all(
+      publishedBots.map(async (bot) => {
+        bot.publicLink = buildPublicLink(admin.subdomain, bot.slug);
+        bot.qrCodeDataUrl = await generateQrDataUrl(bot.publicLink);
+        await bot.save();
+      })
+    );
+
+    const { password: _pw, ...adminData } = admin.toObject();
+    res.status(200).json({
+      success: true,
+      message: admin.subdomain ? "Subdomain saved" : "Subdomain removed",
+      data: adminData,
+    });
+  } catch (error) {
+    if (error?.code === 11000) {
+      return res.status(409).json({ success: false, message: "That subdomain is already taken. Please choose another." });
+    }
     res.status(500).json({ success: false, message: error.message });
   }
 };

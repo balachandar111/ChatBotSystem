@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import App from "./App.jsx";
 import { AuthProvider } from "./context/AuthContext.jsx";
 import BotWidget from "./widget/BotWidget.jsx";
@@ -15,12 +15,14 @@ import "./index.css";
 | geninuety.com — see ChatbotBuilder.jsx's "Publish & Share" tab and
 | backend/controllers/chatbotController.js -> updateSubdomain).
 |
-| A visitor hitting that hostname directly should land straight on that
-| bot's chat experience at "/" — no /bot/:slug path, no admin login shell.
-| We detect that entirely on the client: if the current hostname is exactly
-| one level below VITE_BASE_DOMAIN (and isn't a reserved/admin hostname
-| like "www" or "app"), we mount <BotWidget subdomain="..."> directly
-| instead of the normal admin <App />.
+| A visitor hitting that hostname on the generated link — always
+| "/bot/:slug" (see backend/utils/subdomain.js -> buildPublicLink, which
+| never drops the slug path even on a subdomain) — should land straight on
+| that bot's chat experience, no admin login shell. We detect the subdomain
+| entirely on the client: if the current hostname is exactly one level
+| below VITE_BASE_DOMAIN (and isn't a reserved/admin hostname like "www" or
+| "app"), we route only "/bot/:slug" to <BotWidget>, skipping the normal
+| admin <App /> and its auth/login routes.
 |
 | This assumes the SAME frontend build is served for the root domain AND
 | every wildcard subdomain (one Vercel project + one wildcard domain, or
@@ -53,8 +55,26 @@ ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
       {botSubdomain ? (
-        // Standalone chatbot subdomain: skip auth/admin routing entirely.
-        <BotWidget subdomain={botSubdomain} />
+        // Standalone chatbot subdomain: skip auth/admin routing entirely,
+        // but still match "/bot/:slug" with a real <Route>. Generated links
+        // (see backend/utils/subdomain.js -> buildPublicLink) always look
+        // like "https://<subdomain>.<BASE_DOMAIN>/bot/<slug>" -- the
+        // subdomain never drops the "/bot/:slug" path. BotWidget reads its
+        // bot id via useParams(), which only returns anything inside a
+        // matched <Route>; mounting <BotWidget> bare here (as before) made
+        // `slug` undefined no matter what the URL was, which is what
+        // caused the GET /api/public/bots/undefined 404.
+        <Routes>
+          <Route path="/bot/:slug" element={<BotWidget subdomain={botSubdomain} />} />
+          <Route
+            path="*"
+            element={
+              <div style={{ padding: 40, textAlign: "center", fontFamily: "sans-serif" }}>
+                Chatbot link not found.
+              </div>
+            }
+          />
+        </Routes>
       ) : (
         <AuthProvider>
           <App />

@@ -31,6 +31,14 @@ const adminSchema = new mongoose.Schema(
       default: "ADMIN",
     },
 
+    // Vanity subdomain shared by every chatbot this Admin publishes, e.g.
+    // "muthuwinss" -> https://muthuwinss.geninuety.com/bot/<slug> for each
+    // of their bots. Set via PUT /api/admin/subdomain (self-service) or
+    // PUT /api/superadmin/admins/:id/subdomain (superadmin override). See
+    // backend/utils/subdomain.js for validation rules and DOMAIN_SETUP.md
+    // for the DNS/hosting side.
+    subdomain: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
+
     status: {
       type: String,
       enum: ["ACTIVE", "INACTIVE"],

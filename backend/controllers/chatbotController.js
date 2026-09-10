@@ -1,70 +1,12 @@
 const Chatbot = require("../models/Chatbot");
+const Admin = require("../models/Admin");
 const Product = require("../models/Product");
 const { generateSlug, generateApiKey } = require("../utils/generateBotCredentials");
 const { generateQrDataUrl } = require("../utils/generateQr");
 const { uploadBufferToCloudinary } = require("../utils/cloudinaryUpload");
 const { parseFlowWorkbook, flowToWorkbookBuffer, buildTemplateWorkbookBuffer } = require("../utils/flowExcel");
+const { buildPublicLink } = require("../utils/subdomain");
 
-// Root domain vanity subdomains are cut from, e.g. "geninuety.com" so an
-// admin-chosen subdomain "muthuwinss" resolves to muthuwinss.geninuety.com.
-// Configure via BASE_DOMAIN in backend/.env.
-const BASE_DOMAIN = (process.env.BASE_DOMAIN || "geninuety.com").trim().toLowerCase();
-
-// Hostnames that must never be handed out as a chatbot's subdomain because
-// they're reserved for the platform itself (or common infra conventions).
-const RESERVED_SUBDOMAINS = new Set([
-  "www",
-  "app",
-  "api",
-  "admin",
-  "superadmin",
-  "mail",
-  "smtp",
-  "ftp",
-  "static",
-  "assets",
-  "cdn",
-  "blog",
-  "shop",
-  "store",
-  "dashboard",
-  "portal",
-  "support",
-  "help",
-  "docs",
-  "status",
-  "dev",
-  "staging",
-  "test",
-  "ns1",
-  "ns2",
-]);
-
-// A single DNS label: lowercase letters, digits, hyphens; can't start/end
-// with a hyphen; 1-63 chars.
-const SUBDOMAIN_REGEX = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
-
-/**
- * Builds the full subdomain URL for a chatbot, matching the protocol and
- * port of PUBLIC_APP_URL. This matters for local testing: on a real
- * deployment PUBLIC_APP_URL is like "https://geninuety.com" (no port), but
- * in local dev it's "http://localhost:5173" — a hardcoded "https://" would
- * silently produce a broken link (wrong protocol, missing port) when
- * testing with muthuwinss.localhost:5173. See DOMAIN_SETUP.md.
- */
-const buildSubdomainLink = (subdomain) => {
-  if (!subdomain) return null;
-  let protocol = "https:";
-  let port = "";
-  try {
-    const appUrl = new URL(process.env.PUBLIC_APP_URL || "https://example.com");
-    protocol = appUrl.protocol;
-    port = appUrl.port ? `:${appUrl.port}` : "";
-  } catch {
-    // fall back to https with no port
-  }
-  return `${protocol}//${subdomain}.${BASE_DOMAIN}${port}`;
-};
 
 
 /*
@@ -491,13 +433,17 @@ exports.generateChatbot = async (req, res) => {
     // (re-generate == re-publish after edits), otherwise create new ones.
     const slug = chatbot.slug || generateSlug(chatbot.name);
     const apiKey = chatbot.apiKey || generateApiKey();
-    const pathLink = `${process.env.PUBLIC_APP_URL}/bot/${slug}`;
 
-    // If the admin has already set a vanity subdomain (see updateSubdomain
-    // below), that becomes the primary public link/QR target instead of the
-    // default /bot/:slug path — e.g. https://muthuwinss.geninuety.com.
-    const subdomainLink = chatbot.subdomain ? buildSubdomainLink(chatbot.subdomain) : null;
-    const publicLink = subdomainLink || pathLink;
+    // The owning Admin's vanity subdomain (shared across ALL of their
+    // chatbots — set via PUT /api/admin/subdomain, see adminController.js)
+    // is prepended in front of the usual /bot/:slug path, e.g.:
+    //   no subdomain set -> https://geninuety.com/bot/<slug>   (PUBLIC_APP_URL)
+    //   subdomain "muthuwinss" -> https://muthuwinss.geninuety.com/bot/<slug>
+    // Different chatbots belonging to the SAME admin are told apart by the
+    // slug in the path, exactly as before — the subdomain only re-brands
+    // the host, it doesn't need its own bot lookup.
+    const owner = await Admin.findById(chatbot.admin).select("subdomain");
+    const publicLink = buildPublicLink(owner?.subdomain, slug);
     const qrCodeDataUrl = await generateQrDataUrl(publicLink);
 
     // "Website widget" mode: a small floating chat-bubble launcher the
@@ -514,7 +460,6 @@ exports.generateChatbot = async (req, res) => {
     chatbot.slug = slug;
     chatbot.apiKey = apiKey;
     chatbot.publicLink = publicLink;
-    chatbot.subdomainLink = subdomainLink;
     chatbot.embedSnippet = embedSnippet;
     chatbot.qrCodeDataUrl = qrCodeDataUrl;
     chatbot.status = "published";
@@ -530,8 +475,6 @@ exports.generateChatbot = async (req, res) => {
         slug: chatbot.slug,
         apiKey: chatbot.apiKey,
         publicLink: chatbot.publicLink,
-        subdomain: chatbot.subdomain,
-        subdomainLink: chatbot.subdomainLink,
         embedSnippet: chatbot.embedSnippet,
         qrCodeDataUrl: chatbot.qrCodeDataUrl,
         mode: chatbot.mode,
@@ -683,89 +626,6 @@ exports.updateTheme = async (req, res) => {
 
     res.status(200).json({ success: true, message: "Theme saved", data: chatbot });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-/*
-|--------------------------------------------------------------------------
-| PUT /api/chatbots/:id/subdomain
-|--------------------------------------------------------------------------
-| Sets (or clears) this chatbot's vanity subdomain, e.g. an Admin building
-| a bot for "Muthu Winss" sets subdomain "muthuwinss" so customers can reach
-| it at https://muthuwinss.geninuety.com instead of the default
-| /bot/:slug path. Can be called before or after publishing — if the bot is
-| already published, its `publicLink`/QR code are refreshed immediately so
-| they point at the new subdomain.
-|
-| body: { subdomain: "muthuwinss" }  — send an empty string to remove the
-| subdomain and fall back to the default /bot/:slug link.
-|
-| NOTE: this only makes the subdomain resolve to the right chatbot *inside*
-| this app (via GET /api/public/bots/subdomain/:subdomain, matched by the
-| frontend on load — see frontend/src/main.jsx). DNS still needs a wildcard
-| record (e.g. "*.geninuety.com") pointed at wherever the frontend is
-| hosted, and that wildcard domain added on the hosting side (e.g. Vercel's
-| "Domains" settings) — see DOMAIN_SETUP.md.
-*/
-exports.updateSubdomain = async (req, res) => {
-  try {
-    const raw = (req.body.subdomain ?? "").toString().trim().toLowerCase();
-
-    const chatbot = await Chatbot.findOne({ _id: req.params.id, admin: req.user.id });
-    if (!chatbot) {
-      return res.status(404).json({ success: false, message: "Chatbot not found" });
-    }
-
-    // Empty string -> remove the subdomain, revert to the default link.
-    if (!raw) {
-      chatbot.subdomain = undefined;
-      chatbot.subdomainLink = null;
-      if (chatbot.status === "published") {
-        const pathLink = `${process.env.PUBLIC_APP_URL}/bot/${chatbot.slug}`;
-        chatbot.publicLink = pathLink;
-        chatbot.qrCodeDataUrl = await generateQrDataUrl(pathLink);
-      }
-      await chatbot.save();
-      return res.status(200).json({ success: true, message: "Subdomain removed", data: chatbot });
-    }
-
-    if (!SUBDOMAIN_REGEX.test(raw)) {
-      return res.status(400).json({
-        success: false,
-        message:
-          'Subdomain can only contain lowercase letters, numbers and hyphens, and cannot start or end with a hyphen (e.g. "muthuwinss").',
-      });
-    }
-
-    if (RESERVED_SUBDOMAINS.has(raw)) {
-      return res.status(400).json({ success: false, message: `"${raw}" is reserved. Please choose another subdomain.` });
-    }
-
-    const clash = await Chatbot.findOne({ subdomain: raw, _id: { $ne: chatbot._id } });
-    if (clash) {
-      return res.status(409).json({
-        success: false,
-        message: `"${raw}.${BASE_DOMAIN}" is already taken. Please choose another subdomain.`,
-      });
-    }
-
-    chatbot.subdomain = raw;
-    chatbot.subdomainLink = buildSubdomainLink(raw);
-
-    // Already live? Point the public link/QR at the new subdomain right away.
-    if (chatbot.status === "published") {
-      chatbot.publicLink = chatbot.subdomainLink;
-      chatbot.qrCodeDataUrl = await generateQrDataUrl(chatbot.subdomainLink);
-    }
-
-    await chatbot.save();
-
-    res.status(200).json({ success: true, message: "Subdomain saved", data: chatbot });
-  } catch (error) {
-    if (error?.code === 11000) {
-      return res.status(409).json({ success: false, message: "That subdomain is already taken. Please choose another." });
-    }
     res.status(500).json({ success: false, message: error.message });
   }
 };

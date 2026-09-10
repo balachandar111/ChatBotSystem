@@ -57,15 +57,8 @@ function BackgroundVideo({ src }) {
   );
 }
 
-/**
- * `subdomain` is passed in only when this widget is being mounted directly
- * at "/" because the visitor is on a chatbot's own vanity subdomain (e.g.
- * https://muthuwinss.geninuety.com — see main.jsx's hostname detection).
- * Otherwise (normal /bot/:slug route) it's undefined and we fall back to
- * the route param exactly like before.
- */
-export default function BotWidget({ subdomain } = {}) {
-  const { slug: routeSlug } = useParams();
+export default function BotWidget() {
+  const { slug } = useParams();
   const [searchParams] = useSearchParams();
   const [bot, setBot] = useState(null);
   const [error, setError] = useState("");
@@ -82,24 +75,14 @@ export default function BotWidget({ subdomain } = {}) {
   const isEmbedded = searchParams.get("embed") === "1";
 
   useEffect(() => {
-    const url = subdomain
-      ? `${API_BASE}/public/bots/subdomain/${subdomain}`
-      : `${API_BASE}/public/bots/${routeSlug}`;
-
     axios
-      .get(url)
+      .get(`${API_BASE}/public/bots/${slug}`)
       .then((res) => {
         setBot(res.data.data);
         setLanguage(res.data.data.languages?.[0] || "english");
       })
       .catch((err) => setError(err.response?.data?.message || "This chatbot is not available"));
-  }, [subdomain, routeSlug]);
-
-  // Always the bot's real slug, regardless of whether it was loaded via the
-  // /bot/:slug route or a vanity subdomain — this is what query/TTS
-  // submission actually needs (see sanitizeBot in publicBotController.js,
-  // which now always includes `slug` in the response for this reason).
-  const slug = bot?.slug || routeSlug;
+  }, [slug]);
 
   const theme = bot?.theme || {};
   const headerTitle = theme.title || bot?.name || "Chatbot";

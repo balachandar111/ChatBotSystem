@@ -12,6 +12,7 @@ const {
   updateAdmin,
   setAdminStatus,
   setAdminAccess,
+  setAdminSubdomain,
   deleteAdmin,
 } = require("../controllers/superAdminController");
 
@@ -29,6 +30,7 @@ router.get("/admins/:id", getAdmin);
 router.put("/admins/:id", updateAdmin);
 router.put("/admins/:id/status", setAdminStatus);
 router.put("/admins/:id/access", setAdminAccess);
+router.put("/admins/:id/subdomain", setAdminSubdomain); // set/clear this admin's vanity subdomain
 router.delete("/admins/:id", deleteAdmin);
 
 module.exports = router;

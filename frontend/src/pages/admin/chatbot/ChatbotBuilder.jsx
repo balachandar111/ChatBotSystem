@@ -73,14 +73,6 @@ export default function ChatbotBuilder() {
   const [generating, setGenerating] = useState(false);
   const [uploadingFor, setUploadingFor] = useState(null); // `${nodeKey}:${productIdx}` while an image upload is in flight
   const [displayMode, setDisplayMode] = useState("fullscreen"); // asked right before publish — see Publish & Share tab
-
-  // Vanity subdomain (e.g. "muthuwinss" -> muthuwinss.geninuety.com) — see
-  // the "Custom subdomain" card in the Publish & Share tab below.
-  const [subdomainInput, setSubdomainInput] = useState("");
-  const [subdomainSaving, setSubdomainSaving] = useState(false);
-  const [subdomainMsg, setSubdomainMsg] = useState("");
-  const [subdomainErr, setSubdomainErr] = useState("");
-  const BASE_DOMAIN = import.meta.env.VITE_BASE_DOMAIN || "geninuety.com";
   // True whenever the flow in this editor has edits that haven't been sent
   // to the server yet. Generating/re-generating from a bot that's live in
   // another tab while edits sit unsaved here is exactly how a node someone
@@ -100,7 +92,6 @@ export default function ChatbotBuilder() {
       setFlow(buildFlowState(bot));
       setLang(bot.languages?.[0] || "english");
       setDisplayMode(bot.displayMode || "fullscreen");
-      setSubdomainInput(bot.subdomain || "");
     });
   }, [id]);
 
@@ -433,26 +424,6 @@ export default function ChatbotBuilder() {
       setGenError(err.response?.data?.message || "Could not generate chatbot");
     } finally {
       setGenerating(false);
-    }
-  };
-
-  // Saves (or clears, if blank) this bot's vanity subdomain. If the bot is
-  // already published, the server refreshes publicLink/QR to point at the
-  // new subdomain immediately — see chatbotController.updateSubdomain.
-  const saveSubdomain = async () => {
-    setSubdomainSaving(true);
-    setSubdomainMsg("");
-    setSubdomainErr("");
-    try {
-      const res = await api.put(`/chatbots/${id}/subdomain`, { subdomain: subdomainInput.trim().toLowerCase() });
-      setChatbot((prev) => ({ ...prev, ...res.data.data }));
-      setSubdomainInput(res.data.data.subdomain || "");
-      setSubdomainMsg(res.data.data.subdomain ? "Subdomain saved." : "Subdomain removed.");
-    } catch (err) {
-      setSubdomainErr(err.response?.data?.message || "Could not save subdomain");
-    } finally {
-      setSubdomainSaving(false);
-      setTimeout(() => setSubdomainMsg(""), 4000);
     }
   };
 
@@ -1082,50 +1053,6 @@ export default function ChatbotBuilder() {
       )}
 
       {tab === "publish" && (
-        <>
-        <div className="card" style={{ maxWidth: 560, marginBottom: 20 }}>
-          <h3 style={{ marginBottom: 4 }}>Custom subdomain</h3>
-          <p className="helper-text" style={{ marginBottom: 14 }}>
-            Give this chatbot its own vanity address, e.g. <strong>muthuwinss.{BASE_DOMAIN}</strong> for one client,{" "}
-            <strong>ramajeyam.{BASE_DOMAIN}</strong> for another. Once saved, it becomes this bot's public link (and
-            QR code target) automatically. Leave blank and save to remove it again.
-          </p>
-          <div className="field">
-            <label>Subdomain</label>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <input
-                type="text"
-                value={subdomainInput}
-                onChange={(e) =>
-                  setSubdomainInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))
-                }
-                placeholder="e.g. muthuwinss"
-                className="mono"
-                style={{ flex: 1 }}
-              />
-              <span className="helper-text" style={{ whiteSpace: "nowrap" }}>
-                .{BASE_DOMAIN}
-              </span>
-              <button className="btn btn-primary btn-sm" onClick={saveSubdomain} disabled={subdomainSaving}>
-                {subdomainSaving ? "Saving…" : "Save"}
-              </button>
-            </div>
-          </div>
-          {subdomainErr && <p className="error-text" style={{ marginTop: 8 }}>{subdomainErr}</p>}
-          {subdomainMsg && <p className="helper-text" style={{ marginTop: 8 }}>{subdomainMsg}</p>}
-          {chatbot.subdomainLink && (
-            <div className="field" style={{ marginTop: 4 }}>
-              <label>Live at</label>
-              <div style={{ display: "flex", gap: 8 }}>
-                <input type="text" readOnly value={chatbot.subdomainLink} className="mono" />
-                <button className="btn btn-outline btn-sm" onClick={() => copy(chatbot.subdomainLink)}>
-                  Copy
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
         <div className="card" style={{ maxWidth: 560 }}>
           {chatbot.status !== "published" ? (
             <>
@@ -1213,7 +1140,6 @@ export default function ChatbotBuilder() {
             </>
           )}
         </div>
-        </>
       )}
 
       {showExcelModal && (

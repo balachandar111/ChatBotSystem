@@ -303,18 +303,14 @@ const chatbotSchema = new mongoose.Schema(
     // Populated only once the admin clicks "Generate" (publish)
     slug: { type: String, unique: true, sparse: true },
     apiKey: { type: String, unique: true, sparse: true },
+    // e.g. https://muthuwinss.geninuety.com/bot/<slug> if the owning Admin
+    // has set a subdomain (see Admin.subdomain), otherwise falls back to
+    // PUBLIC_APP_URL/bot/<slug>. Recomputed whenever the Admin's subdomain
+    // changes (see adminController.updateSubdomain) or the bot is
+    // (re-)published (see chatbotController.generateChatbot).
     publicLink: { type: String, default: null },
     embedSnippet: { type: String, default: null }, // only set when displayMode === "widget"
     qrCodeDataUrl: { type: String, default: null }, // base64 PNG data URL
-
-    // Vanity subdomain, e.g. "muthuwinss" -> https://muthuwinss.geninuety.com
-    // Set/cleared any time via PUT /api/chatbots/:id/subdomain (see
-    // chatbotController.updateSubdomain), independent of publish state.
-    // Once a chatbot is published, having a subdomain makes `publicLink`
-    // point at it instead of the default /bot/:slug path (see
-    // chatbotController.generateChatbot).
-    subdomain: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
-    subdomainLink: { type: String, default: null }, // e.g. "https://muthuwinss.geninuety.com"
 
     publishedAt: { type: Date, default: null },
   },

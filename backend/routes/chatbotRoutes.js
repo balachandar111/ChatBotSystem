@@ -19,7 +19,6 @@ const {
   uploadThemeAsset,
   uploadThemeVideo,
   updateTheme,
-  updateSubdomain,
   downloadFlowTemplate,
   exportFlowExcel,
   importFlowExcel,
@@ -43,7 +42,6 @@ router.put("/:id/flow", updateFlow); // save the dynamic question/option tree
 router.get("/:id/flow/export-excel", exportFlowExcel); // download this bot's current flow as .xlsx
 router.post("/:id/flow/import-excel", uploadExcel.single("file"), importFlowExcel); // build/replace the flow from an uploaded .xlsx
 router.put("/:id/theme", updateTheme); // save logo / title / colors / background for the widget
-router.put("/:id/subdomain", updateSubdomain); // set/clear vanity subdomain, e.g. muthuwinss.geninuety.com
 router.post("/:id/generate", generateChatbot); // publish -> link + QR + API key
 router.get("/:id/qr.png", getQrPng); // download QR as PNG
 
