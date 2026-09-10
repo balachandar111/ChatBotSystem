@@ -44,6 +44,28 @@ const RESERVED_SUBDOMAINS = new Set([
 // with a hyphen; 1-63 chars.
 const SUBDOMAIN_REGEX = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
+/**
+ * Builds the full subdomain URL for a chatbot, matching the protocol and
+ * port of PUBLIC_APP_URL. This matters for local testing: on a real
+ * deployment PUBLIC_APP_URL is like "https://geninuety.com" (no port), but
+ * in local dev it's "http://localhost:5173" — a hardcoded "https://" would
+ * silently produce a broken link (wrong protocol, missing port) when
+ * testing with muthuwinss.localhost:5173. See DOMAIN_SETUP.md.
+ */
+const buildSubdomainLink = (subdomain) => {
+  if (!subdomain) return null;
+  let protocol = "https:";
+  let port = "";
+  try {
+    const appUrl = new URL(process.env.PUBLIC_APP_URL || "https://example.com");
+    protocol = appUrl.protocol;
+    port = appUrl.port ? `:${appUrl.port}` : "";
+  } catch {
+    // fall back to https with no port
+  }
+  return `${protocol}//${subdomain}.${BASE_DOMAIN}${port}`;
+};
+
 
 /*
 |--------------------------------------------------------------------------
@@ -474,7 +496,7 @@ exports.generateChatbot = async (req, res) => {
     // If the admin has already set a vanity subdomain (see updateSubdomain
     // below), that becomes the primary public link/QR target instead of the
     // default /bot/:slug path — e.g. https://muthuwinss.geninuety.com.
-    const subdomainLink = chatbot.subdomain ? `https://${chatbot.subdomain}.${BASE_DOMAIN}` : null;
+    const subdomainLink = chatbot.subdomain ? buildSubdomainLink(chatbot.subdomain) : null;
     const publicLink = subdomainLink || pathLink;
     const qrCodeDataUrl = await generateQrDataUrl(publicLink);
 
@@ -729,7 +751,7 @@ exports.updateSubdomain = async (req, res) => {
     }
 
     chatbot.subdomain = raw;
-    chatbot.subdomainLink = `https://${raw}.${BASE_DOMAIN}`;
+    chatbot.subdomainLink = buildSubdomainLink(raw);
 
     // Already live? Point the public link/QR at the new subdomain right away.
     if (chatbot.status === "published") {
