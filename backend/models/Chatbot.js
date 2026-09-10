@@ -307,6 +307,15 @@ const chatbotSchema = new mongoose.Schema(
     embedSnippet: { type: String, default: null }, // only set when displayMode === "widget"
     qrCodeDataUrl: { type: String, default: null }, // base64 PNG data URL
 
+    // Vanity subdomain, e.g. "muthuwinss" -> https://muthuwinss.geninuety.com
+    // Set/cleared any time via PUT /api/chatbots/:id/subdomain (see
+    // chatbotController.updateSubdomain), independent of publish state.
+    // Once a chatbot is published, having a subdomain makes `publicLink`
+    // point at it instead of the default /bot/:slug path (see
+    // chatbotController.generateChatbot).
+    subdomain: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
+    subdomainLink: { type: String, default: null }, // e.g. "https://muthuwinss.geninuety.com"
+
     publishedAt: { type: Date, default: null },
   },
   { timestamps: true }

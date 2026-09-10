@@ -18,6 +18,25 @@ const allowedOrigins = (process.env.CLIENT_ORIGIN || "*")
 const isDev = (process.env.NODE_ENV || "development") !== "production";
 const localhostRegex = /^https?:\/\/(localhost|127\.0\.0\.1):\d+$/;
 
+// Every published chatbot's own vanity subdomain (e.g.
+// https://muthuwinss.geninuety.com) is a distinct browser origin that also
+// needs to call this API directly (fetching bot config, submitting
+// queries, TTS, ...), so any subdomain of BASE_DOMAIN is allowed in
+// addition to the explicit CLIENT_ORIGIN list. Configure BASE_DOMAIN in
+// backend/.env (e.g. "geninuety.com").
+const BASE_DOMAIN = (process.env.BASE_DOMAIN || "").trim().toLowerCase();
+
+const isAllowedSubdomainOrigin = (origin) => {
+  if (!BASE_DOMAIN) return false;
+  try {
+    const { hostname } = new URL(origin);
+    const host = hostname.toLowerCase();
+    return host === BASE_DOMAIN || host.endsWith(`.${BASE_DOMAIN}`);
+  } catch {
+    return false;
+  }
+};
+
 app.use(
   cors({
     origin(origin, callback) {
@@ -26,6 +45,7 @@ app.use(
       if (allowedOrigins.includes("*")) return callback(null, true);
       if (allowedOrigins.includes(origin)) return callback(null, true);
       if (isDev && localhostRegex.test(origin)) return callback(null, true);
+      if (isAllowedSubdomainOrigin(origin)) return callback(null, true);
       return callback(new Error(`Origin ${origin} not allowed by CORS`));
     },
     credentials: true,

@@ -20,6 +20,10 @@ const sanitizeBot = (chatbot) => {
 
   return {
     id: chatbot._id,
+    // Needed even when the widget was loaded by subdomain (see
+    // getBotBySubdomain below) so the frontend can still submit queries /
+    // TTS requests against the existing /api/public/bots/:slug/... routes.
+    slug: chatbot.slug,
     name: chatbot.name,
     type: chatbot.type,
     mode: chatbot.mode, // "normal" -> ramajeyam-style engine, "voice" -> manimark-style engine
@@ -46,6 +50,31 @@ const sanitizeBot = (chatbot) => {
 exports.getBotBySlug = async (req, res) => {
   try {
     const chatbot = await Chatbot.findOne({ slug: req.params.slug, status: "published" });
+
+    if (!chatbot) {
+      return res.status(404).json({ success: false, message: "Chatbot not found" });
+    }
+
+    res.status(200).json({ success: true, data: sanitizeBot(chatbot) });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/*
+|--------------------------------------------------------------------------
+| GET /api/public/bots/subdomain/:subdomain
+|--------------------------------------------------------------------------
+| Used when a chatbot is reached via its own vanity subdomain (e.g.
+| https://muthuwinss.geninuety.com — see ChatbotBuilder.jsx's "Publish &
+| Share" tab where the Admin sets this). The frontend detects on load that
+| it's being served from a subdomain of the platform's base domain (see
+| frontend/src/main.jsx) and calls this instead of the /:slug route.
+*/
+exports.getBotBySubdomain = async (req, res) => {
+  try {
+    const subdomain = (req.params.subdomain || "").toString().trim().toLowerCase();
+    const chatbot = await Chatbot.findOne({ subdomain, status: "published" });
 
     if (!chatbot) {
       return res.status(404).json({ success: false, message: "Chatbot not found" });
